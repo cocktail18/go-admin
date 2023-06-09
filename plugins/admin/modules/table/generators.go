@@ -1042,7 +1042,7 @@ func (s *SystemTable) GetMenuTable(ctx *context.Context) (menuTable Table) {
 func (s *SystemTable) GetSiteTable(ctx *context.Context) (siteTable Table) {
 	siteTable = NewDefaultTable(DefaultConfigWithDriver(config.GetDatabases().GetDefault().Driver).
 		SetOnlyUpdateForm().
-		SetGetDataFun(func(params parameter.Parameters) (i []map[string]interface{}, i2 int) {
+		SetGetDataFun(func(params parameter.Parameters, db db.Connection) (i []map[string]interface{}, i2 int) {
 			return []map[string]interface{}{models.Site().SetConn(s.conn).AllToMapInterface()}, 1
 		}))
 

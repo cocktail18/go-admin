@@ -38,7 +38,7 @@ type DefaultTable struct {
 	dbObj db.Connection
 }
 
-type GetDataFun func(params parameter.Parameters) ([]map[string]interface{}, int)
+type GetDataFun func(params parameter.Parameters, db db.Connection) ([]map[string]interface{}, int)
 
 func NewDefaultTable(cfgs ...Config) Table {
 
@@ -137,11 +137,11 @@ func (tb *DefaultTable) GetData(params parameter.Parameters) (PanelInfo, error) 
 	}
 
 	if tb.getDataFun != nil {
-		data, size = tb.getDataFun(params)
+		data, size = tb.getDataFun(params, tb.db())
 	} else if tb.sourceURL != "" {
 		data, size = tb.getDataFromURL(params)
 	} else if tb.Info.GetDataFn != nil {
-		data, size = tb.Info.GetDataFn(params)
+		data, size = tb.Info.GetDataFn(params, tb.db())
 	} else if params.IsAll() {
 		return tb.getAllDataFromDatabase(params)
 	} else {
@@ -229,11 +229,11 @@ func (tb *DefaultTable) GetDataWithIds(params parameter.Parameters) (PanelInfo, 
 	)
 
 	if tb.getDataFun != nil {
-		data, size = tb.getDataFun(params)
+		data, size = tb.getDataFun(params, tb.db())
 	} else if tb.sourceURL != "" {
 		data, size = tb.getDataFromURL(params)
 	} else if tb.Info.GetDataFn != nil {
-		data, size = tb.Info.GetDataFn(params)
+		data, size = tb.Info.GetDataFn(params, tb.db())
 	} else {
 		return tb.getDataFromDatabase(params)
 	}
@@ -634,13 +634,13 @@ func (tb *DefaultTable) GetDataWithId(param parameter.Parameters) (FormInfo, err
 	)
 
 	if tb.getDataFun != nil {
-		res = getDataRes(tb.getDataFun(param))
+		res = getDataRes(tb.getDataFun(param, tb.db()))
 	} else if tb.sourceURL != "" {
 		res = getDataRes(tb.getDataFromURL(param))
 	} else if tb.Detail.GetDataFn != nil {
-		res = getDataRes(tb.Detail.GetDataFn(param))
+		res = getDataRes(tb.Detail.GetDataFn(param, tb.db()))
 	} else if tb.Info.GetDataFn != nil {
-		res = getDataRes(tb.Info.GetDataFn(param))
+		res = getDataRes(tb.Info.GetDataFn(param, tb.db()))
 	} else {
 
 		columns, _ = tb.getColumns(tb.Form.Table)
