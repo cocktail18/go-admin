@@ -447,17 +447,16 @@ func (f FieldList) GetFieldByFieldName(name string) Field {
 
 // Join store join table info. For example:
 //
-// Join {
-//     BaseTable:   "users",
-//     Field:       "role_id",
-//     Table:       "roles",
-//     JoinField:   "id",
-// }
+//	Join {
+//	    BaseTable:   "users",
+//	    Field:       "role_id",
+//	    Table:       "roles",
+//	    JoinField:   "id",
+//	}
 //
 // It will generate the join table sql like:
 //
 // ... left join roles on roles.id = users.role_id ...
-//
 type Join struct {
 	Table      string
 	TableAlias string
@@ -529,7 +528,7 @@ func (t TabHeaders) Add(header string) TabHeaders {
 	return append(t, header)
 }
 
-type GetDataFn func(param parameter.Parameters) ([]map[string]interface{}, int)
+type GetDataFn func(param parameter.Parameters, db db.Connection) ([]map[string]interface{}, int)
 
 type DeleteFn func(ids []string) error
 type DeleteFnWithRes func(ids []string, res error) error
