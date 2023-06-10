@@ -354,6 +354,12 @@ func (h *Handler) Export(ctx *context.Context) {
 		params    parameter.Parameters
 	)
 
+	if tableInfo.UpdateParametersFns != nil {
+		for _, fn := range tableInfo.UpdateParametersFns {
+			fn(&params)
+		}
+	}
+
 	if fn := panel.GetInfo().ExportProcessFn; fn != nil {
 		params = parameter.GetParam(ctx.Request.URL, tableInfo.DefaultPageSize, tableInfo.SortField,
 			tableInfo.GetSort())

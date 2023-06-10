@@ -624,6 +624,90 @@ func getDataRes(list []map[string]interface{}, _ int) map[string]interface{} {
 	return nil
 }
 
+func (tb *DefaultTable) GetDataByParam(param parameter.Parameters) ([]map[string]interface{}, error) {
+	var (
+		columns Columns
+		id      = param.PK()
+	)
+	columns, _ = tb.getColumns(tb.Form.Table)
+
+	var (
+		fields, joinFields, joins, groupBy = "", "", "", ""
+
+		err            error
+		joinTables     = make([]string, 0)
+		args           = []interface{}{id}
+		connection     = tb.db()
+		delimiter      = connection.GetDelimiter()
+		delimiter2     = connection.GetDelimiter2()
+		tableName      = modules.Delimiter(delimiter, delimiter2, tb.GetForm().Table)
+		pk             = tableName + "." + modules.Delimiter(delimiter, delimiter2, tb.PrimaryKey.Name)
+		queryStatement = "select %s from %s %s where " + pk + " = ? %s "
+	)
+
+	for i := 0; i < len(tb.Form.FieldList); i++ {
+
+		if tb.Form.FieldList[i].Field != pk && modules.InArray(columns, tb.Form.FieldList[i].Field) &&
+			!tb.Form.FieldList[i].Joins.Valid() {
+			fields += tableName + "." + modules.FilterField(tb.Form.FieldList[i].Field, delimiter, delimiter2) + ","
+		}
+
+		if tb.Form.FieldList[i].Joins.Valid() {
+			headField := tb.Form.FieldList[i].Joins.Last().GetTableName() + parameter.FilterParamJoinInfix + tb.Form.FieldList[i].Field
+			joinFields += db.GetAggregationExpression(connection.Name(), tb.Form.FieldList[i].Joins.Last().GetTableName(delimiter, delimiter2)+"."+
+				modules.FilterField(tb.Form.FieldList[i].Field, delimiter, delimiter2), headField, types.JoinFieldValueDelimiter) + ","
+			for _, join := range tb.Form.FieldList[i].Joins {
+				if !modules.InArray(joinTables, join.GetTableName(delimiter, delimiter2)) {
+					joinTables = append(joinTables, join.GetTableName(delimiter, delimiter2))
+					if join.BaseTable == "" {
+						join.BaseTable = tableName
+					}
+					joins += " left join " + modules.FilterField(join.Table, delimiter, delimiter2) + " " + join.TableAlias + " on " +
+						join.GetTableName(delimiter, delimiter2) + "." + modules.FilterField(join.JoinField, delimiter, delimiter2) + " = " +
+						join.BaseTable + "." + modules.FilterField(join.Field, delimiter, delimiter2)
+				}
+			}
+		}
+	}
+
+	fields += pk
+	groupFields := fields
+
+	if joinFields != "" {
+		fields += "," + joinFields[:len(joinFields)-1]
+		if connection.Name() == db.DriverMssql {
+			for i := 0; i < len(tb.Form.FieldList); i++ {
+				if tb.Form.FieldList[i].TypeName == db.Text || tb.Form.FieldList[i].TypeName == db.Longtext {
+					f := modules.Delimiter(connection.GetDelimiter(), connection.GetDelimiter2(), tb.Form.FieldList[i].Field)
+					headField := tb.Info.Table + "." + f
+					fields = strings.ReplaceAll(fields, headField, "CAST("+headField+" AS NVARCHAR(MAX)) as "+f)
+					groupFields = strings.ReplaceAll(groupFields, headField, "CAST("+headField+" AS NVARCHAR(MAX))")
+				}
+			}
+		}
+	}
+
+	if len(joinTables) > 0 {
+		if connection.Name() == db.DriverMssql {
+			groupBy = " GROUP BY " + groupFields
+		} else {
+			groupBy = " GROUP BY " + pk
+		}
+	}
+
+	queryCmd := fmt.Sprintf(queryStatement, fields, tableName, joins, groupBy)
+
+	logger.LogSQL(queryCmd, args)
+
+	result, err := connection.QueryWithConnection(tb.connection, queryCmd, args...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // GetDataWithId query the single row of data.
 func (tb *DefaultTable) GetDataWithId(param parameter.Parameters) (FormInfo, error) {
 
@@ -642,79 +726,7 @@ func (tb *DefaultTable) GetDataWithId(param parameter.Parameters) (FormInfo, err
 	} else if tb.Info.GetDataFn != nil {
 		res = getDataRes(tb.Info.GetDataFn(param, tb.db()))
 	} else {
-
-		columns, _ = tb.getColumns(tb.Form.Table)
-
-		var (
-			fields, joinFields, joins, groupBy = "", "", "", ""
-
-			err            error
-			joinTables     = make([]string, 0)
-			args           = []interface{}{id}
-			connection     = tb.db()
-			delimiter      = connection.GetDelimiter()
-			delimiter2     = connection.GetDelimiter2()
-			tableName      = modules.Delimiter(delimiter, delimiter2, tb.GetForm().Table)
-			pk             = tableName + "." + modules.Delimiter(delimiter, delimiter2, tb.PrimaryKey.Name)
-			queryStatement = "select %s from %s %s where " + pk + " = ? %s "
-		)
-
-		for i := 0; i < len(tb.Form.FieldList); i++ {
-
-			if tb.Form.FieldList[i].Field != pk && modules.InArray(columns, tb.Form.FieldList[i].Field) &&
-				!tb.Form.FieldList[i].Joins.Valid() {
-				fields += tableName + "." + modules.FilterField(tb.Form.FieldList[i].Field, delimiter, delimiter2) + ","
-			}
-
-			if tb.Form.FieldList[i].Joins.Valid() {
-				headField := tb.Form.FieldList[i].Joins.Last().GetTableName() + parameter.FilterParamJoinInfix + tb.Form.FieldList[i].Field
-				joinFields += db.GetAggregationExpression(connection.Name(), tb.Form.FieldList[i].Joins.Last().GetTableName(delimiter, delimiter2)+"."+
-					modules.FilterField(tb.Form.FieldList[i].Field, delimiter, delimiter2), headField, types.JoinFieldValueDelimiter) + ","
-				for _, join := range tb.Form.FieldList[i].Joins {
-					if !modules.InArray(joinTables, join.GetTableName(delimiter, delimiter2)) {
-						joinTables = append(joinTables, join.GetTableName(delimiter, delimiter2))
-						if join.BaseTable == "" {
-							join.BaseTable = tableName
-						}
-						joins += " left join " + modules.FilterField(join.Table, delimiter, delimiter2) + " " + join.TableAlias + " on " +
-							join.GetTableName(delimiter, delimiter2) + "." + modules.FilterField(join.JoinField, delimiter, delimiter2) + " = " +
-							join.BaseTable + "." + modules.FilterField(join.Field, delimiter, delimiter2)
-					}
-				}
-			}
-		}
-
-		fields += pk
-		groupFields := fields
-
-		if joinFields != "" {
-			fields += "," + joinFields[:len(joinFields)-1]
-			if connection.Name() == db.DriverMssql {
-				for i := 0; i < len(tb.Form.FieldList); i++ {
-					if tb.Form.FieldList[i].TypeName == db.Text || tb.Form.FieldList[i].TypeName == db.Longtext {
-						f := modules.Delimiter(connection.GetDelimiter(), connection.GetDelimiter2(), tb.Form.FieldList[i].Field)
-						headField := tb.Info.Table + "." + f
-						fields = strings.ReplaceAll(fields, headField, "CAST("+headField+" AS NVARCHAR(MAX)) as "+f)
-						groupFields = strings.ReplaceAll(groupFields, headField, "CAST("+headField+" AS NVARCHAR(MAX))")
-					}
-				}
-			}
-		}
-
-		if len(joinTables) > 0 {
-			if connection.Name() == db.DriverMssql {
-				groupBy = " GROUP BY " + groupFields
-			} else {
-				groupBy = " GROUP BY " + pk
-			}
-		}
-
-		queryCmd := fmt.Sprintf(queryStatement, fields, tableName, joins, groupBy)
-
-		logger.LogSQL(queryCmd, args)
-
-		result, err := connection.QueryWithConnection(tb.connection, queryCmd, args...)
-
+		result, err := tb.GetDataByParam(param)
 		if err != nil {
 			return FormInfo{Title: tb.Form.Title, Description: tb.Form.Description}, err
 		}
