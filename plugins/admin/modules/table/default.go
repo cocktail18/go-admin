@@ -121,8 +121,8 @@ func (tb *DefaultTable) GetData(params parameter.Parameters) (PanelInfo, error) 
 		}
 	}
 
+	var ids []string
 	if tb.Info.QueryFilterFn != nil {
-		var ids []string
 		var stopQuery bool
 
 		if tb.getDataFun == nil && tb.Info.GetDataFn == nil {
@@ -134,6 +134,9 @@ func (tb *DefaultTable) GetData(params parameter.Parameters) (PanelInfo, error) 
 		if stopQuery {
 			return tb.GetDataWithIds(params.WithPKs(ids...))
 		}
+	}
+	if ids != nil && len(ids) > 0 {
+		params.WithPKs(ids...)
 	}
 
 	if tb.getDataFun != nil {
